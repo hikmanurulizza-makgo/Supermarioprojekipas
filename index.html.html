@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Petualangan Ekonomi Semarang</title>
+<style>
+:root{color-scheme:dark;--bg:#14213d;--card:#fff8e7;--ink:#1d2433;--acc:#e63946;--gold:#ffb703;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font-family:"Trebuchet MS",Verdana,sans-serif;display:flex;flex-direction:column;align-items:center}
+#hud{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;padding:8px;font-size:14px;font-weight:bold;width:100%;max-width:900px}
+#hud span{background:#0006;padding:3px 9px;border-radius:12px}
+#bar{display:inline-block;width:90px;height:10px;background:#0008;border-radius:5px;vertical-align:middle;overflow:hidden}
+#bar i{display:block;height:100%;width:20%;background:linear-gradient(90deg,#f77f00,#80ed99)}
+#wrap{position:relative;width:100%;max-width:900px}
+canvas{width:100%;height:auto;display:block;background:#8ecae6;image-rendering:pixelated;border:3px solid #000;border-radius:8px}
+.ov{position:absolute;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto}
+.ov.hide{display:none}
+.card{background:var(--card);color:var(--ink);border-radius:14px;padding:16px 18px;max-width:560px;width:100%;box-shadow:0 6px 0 #0006}
+.card h2{margin:0 0 6px;font-size:20px;color:var(--acc)}
+.card p,.card li{font-size:14px;line-height:1.45;margin:4px 0}
+.card ul{padding-left:18px;margin:6px 0}
+.btn{display:block;width:100%;margin-top:8px;padding:10px;border:0;border-radius:10px;background:var(--gold);color:#222;font:bold 15px inherit;cursor:pointer;text-align:left}
+.btn.go{text-align:center;background:var(--acc);color:#fff}
+.btn.ok{background:#80ed99}.btn.no{background:#ff8fa3}
+.btn:disabled{cursor:default}
+#pad{display:flex;justify-content:space-between;width:100%;max-width:900px;padding:8px 14px 14px;gap:10px;touch-action:none}
+#pad div{display:flex;gap:10px}
+#pad button{width:68px;height:60px;border-radius:14px;border:0;background:#fff3;color:#fff;font-size:24px;font-weight:bold;touch-action:none;user-select:none}
+#pad button:active{background:#fff7}
+.in{width:100%;padding:9px;margin:4px 0;border:2px solid #c9b88a;border-radius:8px;font:14px inherit;background:#fff;color:#222}
+small{opacity:.7}
+</style>
+</head>
+<body>
+<div id="hud">
+  <span>❤️ Nyawa: <b id="lv">3</b></span>
+  <span>💰 Tabungan: Rp<b id="mo">0</b></span>
+  <span>⭐ Skor: <b id="sc">0</b></span>
+  <span>🏘️ Kesejahteraan <span id="bar"><i id="bi"></i></span></span>
+  <span>📘 Kuis: <b id="qc">0</b>/10</span>
+</div>
+<div id="wrap">
+  <canvas id="c" width="800" height="400"></canvas>
+  <div class="ov" id="ov"><div class="card" id="cd"></div></div>
+</div>
+<div id="pad">
+  <div><button id="bl">◀</button><button id="br">▶</button></div>
+  <div><button id="bj">⬆</button></div>
+</div>
+<small>Panah / A D = jalan · Spasi / W = lompat · Sundul blok ? dari bawah</small>
+
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+const W=800,H=400,GY=340,WORLD=5400,FLAG=5200;
+const segs=[[0,900],[1000,1900],[2020,3000],[3100,4100],[4200,5400]];
+const plats=[[480,270,110],[1250,270,120],[2300,270,100],[3600,270,120],[4450,270,100]];
+const zones=[[0,'Zona 1 · Ekonomi & Kesejahteraan'],[1500,'Zona 2 · Cerdas Finansial'],[3300,'Zona 3 · Ekonomi Kreatif Semarang']];
+const QS=[
+["Kebutuhan primer manusia adalah ...",["Gawai terbaru","Pangan, sandang, dan papan","Tiket konser"],1,"Kebutuhan primer harus dipenuhi lebih dulu agar hidup layak."],
+["Salah satu indikator kesejahteraan masyarakat adalah ...",["Pendapatan, pendidikan, dan kesehatan terpenuhi","Jumlah pengikut media sosial","Banyaknya pusat perbelanjaan"],0,"Kesejahteraan dilihat dari terpenuhinya kebutuhan dasar, pendapatan layak, pendidikan, dan kesehatan."],
+["Uang sakumu terbatas. Kamu butuh buku sekolah, tapi ingin jajan boba. Langkah tepat?",["Beli keduanya dengan berutang","Utamakan buku, jajan kalau ada sisa","Beli boba dulu"],1,"Skala prioritas: dahulukan kebutuhan, baru keinginan. Inilah inti prinsip ekonomi."],
+["Cara menabung yang lebih disiplin adalah ...",["Menabung dari sisa uang","Tidak perlu menabung","Menyisihkan tabungan di awal saat menerima uang"],2,"Pemasukan − Tabungan = Pengeluaran. Sisihkan dulu, baru belanja."],
+["Dana darurat berguna untuk ...",["Membeli barang diskon","Kebutuhan mendadak, misalnya biaya berobat","Taruhan online"],1,"Dana darurat melindungi keuangan dari kejadian tak terduga tanpa harus berutang."],
+["Ciri investasi atau pinjaman bodong adalah ...",["Janji untung besar, cepat, tanpa risiko","Terdaftar dan diawasi OJK","Risikonya dijelaskan jelas"],0,"Waspada janji untung tinggi tanpa risiko. Cek legalitas di OJK sebelum ikut."],
+["Ekonomi kreatif adalah kegiatan ekonomi yang bertumpu pada ...",["Ide, kreativitas, dan keterampilan","Hanya hasil tambang","Hanya impor barang"],0,"Nilai tambah muncul dari ide dan keterampilan, misalnya kuliner, kriya, fesyen, dan desain."],
+["Produk kuliner khas Semarang yang bisa jadi oleh-oleh kreatif UMKM adalah ...",["Lunpia, bandeng presto, wingko babat","Papeda dan ikan kuah kuning","Bika Ambon"],0,"Lunpia, bandeng presto, dan wingko babat adalah ikon oleh-oleh Semarang yang terus diinovasi."],
+["Bagaimana kawasan Kota Lama dan Lawang Sewu menumbuhkan ekonomi kreatif?",["Dibiarkan kosong","Wisata sejarah dan event seni membuka usaha serta lapangan kerja lokal","Semua usaha dipindah ke luar kota"],1,"Wisata sejarah menarik pengunjung sehingga kafe, kriya, pemandu, dan UMKM ikut tumbuh."],
+["Inovasi apa yang menaikkan nilai tambah batik atau lunpia UMKM Semarang?",["Kemasan menarik, branding, dan pemasaran digital","Menurunkan kualitas agar murah","Menghentikan produksi"],0,"Kemasan, merek, dan marketplace atau media sosial memperluas pasar dan menaikkan harga jual."],
+["Contoh keinginan (bukan kebutuhan) adalah ...",["Makan nasi","Sepatu edisi terbatas untuk koleksi","Buku pelajaran"],1,"Keinginan boleh dipenuhi setelah kebutuhan terpenuhi dan uangnya tersedia."],
+["Mengapa manusia harus membuat pilihan dalam ekonomi?",["Kebutuhan tidak terbatas, sedangkan sumber daya terbatas","Karena semua barang gratis","Karena uang tidak berguna"],0,"Kelangkaan membuat kita perlu memilih dengan bijak."],
+["Sebelum berutang, hal pertama yang perlu dipikirkan adalah ...",["Kemampuan membayar kembali","Gengsi di depan teman","Bunga tidak perlu dibaca"],0,"Utang hanya aman jika mampu dilunasi. Pahami bunga dan cicilannya."],
+["Mencatat pemasukan dan pengeluaran bermanfaat untuk ...",["Menyembunyikan uang","Mengetahui ke mana uang pergi dan mengendalikan boros","Menambah utang"],1,"Pembukuan sederhana membantu menyusun anggaran dan menghindari boros."],
+["UMKM batik Semarang bisa berinovasi dengan ...",["Mengangkat motif khas Semarang seperti Asem Arang dalam desain modern","Meniru motif daerah lain tanpa izin","Berhenti membatik"],0,"Motif khas dikreasikan menjadi produk modern bernilai tambah."],
+["Dugderan dan Warak Ngendog sebagai budaya Semarang dapat dikembangkan menjadi ...",["Barang yang dilupakan","Produk impor","Suvenir kreatif dan event wisata budaya"],2,"Budaya lokal bisa menjadi suvenir dan festival yang menggerakkan ekonomi."]];
+const ZP=[[0,1,2,10,11],[3,4,5,12,13],[6,7,8,9,14,15]],ZN=[3,3,4];
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const blocks=[350,650,1150,1700,2200,2700,3500,3900,4400,4800].map((x,i)=>({x,y:232,w:32,h:32,q:i,used:false,b:true}));
+const coins=[];[120,200,280,520,560,800,1050,1100,1300,1330,1500,1560,1800,2100,2150,2400,2600,2850,3200,3250,3650,3700,4000,4300,4350,4500,4900,5000].forEach(x=>coins.push({x,y:(plats.some(p=>x>p[0]&&x<p[0]+p[2])?230:300),got:false}));
+const enemyDefs=[[450,'Boros',350,850],[1400,'Utang',1050,1850],[2500,'Hoaks',2050,2950],[3000,'Boros',2100,2950],[3800,'Utang',3150,4050],[4700,'Hoaks',4250,5100]];
+let S,keys={l:0,r:0,j:0},state='intro',cur=null;
+function reset(){
+  S={p:{x:60,y:GY-32,w:22,h:32,vx:0,vy:0,on:false,face:1},lives:3,money:0,score:0,well:20,done:0,ok:0,inv:0,cp:60,t:0};
+  let bi_=0;ZP.forEach((z,zi)=>shuf(z).slice(0,ZN[zi]).forEach(q=>{blocks[bi_].q=q;blocks[bi_].used=false;bi_++}));coins.forEach(c=>c.got=false);
+  S.en=enemyDefs.map(e=>({x:e[0],y:GY-26,w:28,h:26,d:1,n:e[1],min:e[2],max:e[3],alive:true}));
+  hud();
+}
+function hud(){
+  lv.textContent=S.lives;mo.textContent=S.money.toLocaleString('id-ID');sc.textContent=S.score;
+  bi.style.width=Math.min(100,S.well)+'%';qc.textContent=S.done;
+}
+const $=id=>document.getElementById(id);
+const lv=$('lv'),mo=$('mo'),sc=$('sc'),bi=$('bi'),qc=$('qc'),ov=$('ov'),cd=$('cd');
+function solids(){
+  const a=[];segs.forEach(s=>a.push({x:s[0],y:GY,w:s[1]-s[0],h:80}));
+  plats.forEach(p=>a.push({x:p[0],y:p[1],w:p[2],h:18}));
+  return a.concat(blocks);
+}
+const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+function step(){
+  const p=S.p;S.t++;
+  const dx=(keys.r-keys.l)*4;if(dx)p.face=Math.sign(dx);
+  const sol=solids();
+  p.x+=dx;
+  for(const s of sol)if(hit(p,s)){p.x=dx>0?s.x-p.w:s.x+s.w}
+  p.x=Math.max(0,p.x);
+  if(keys.j&&p.on){p.vy=-12.2;p.on=false}
+  p.vy+=.6;if(p.vy>14)p.vy=14;
+  p.y+=p.vy;p.on=false;
+  for(const s of sol)if(hit(p,s)){
+    if(p.vy>0){p.y=s.y-p.h;p.vy=0;p.on=true}
+    else if(p.vy<0){p.y=s.y+s.h;p.vy=0;if(s.b&&!s.used){ask(s);return}}
+  }
+  if(p.on){const sg=segs.find(s=>p.x>=s[0]&&p.x<s[1]&&Math.abs(p.y+p.h-GY)<2);if(sg)S.cp=Math.max(sg[0]+20,sg[0]===0?60:sg[0]+20)}
+  if(p.y>H+60)return hurt(true);
+  coins.forEach(c=>{if(!c.got&&Math.abs(c.x-(p.x+11))<18&&Math.abs(c.y-(p.y+16))<24){c.got=true;S.money+=5000;S.score+=10;hud()}});
+  S.en.forEach(e=>{
+    if(!e.alive)return;
+    e.x+=e.d*1.1;if(e.x<e.min||e.x>e.max)e.d*=-1;
+    if(hit(p,e)){
+      if(p.vy>0&&p.y+p.h-e.y<18){e.alive=false;p.vy=-8;S.score+=50;hud()}
+      else if(!S.inv)hurt(false);
+    }
+  });
+  if(S.inv)S.inv--;
+  if(p.x>FLAG)win();
+}
+function hurt(fall){
+  S.lives--;S.well=Math.max(0,S.well-5);S.inv=90;
+  if(fall){S.p.x=S.cp;S.p.y=GY-60;S.p.vy=0}else{S.p.vy=-7;S.p.x-=S.p.face*20}
+  hud();
+  if(S.lives<=0){state='over';card('<h2>Game Over 😢</h2><p>Nyawamu habis. Ingat: utang konsumtif, boros, dan hoaks investasi bisa menggerus kesejahteraan.</p><button class="btn go" onclick="start()">Main Lagi</button>')}
+}
+function ask(b){
+  b.used=true;cur=b;state='quiz';const q=QS[b.q];
+  b.ord=shuf(q[1].map((_,i)=>i));b.cor=b.ord.indexOf(q[2]);
+  card('<h2>❓ Kuis '+(S.done+1)+'/10</h2><p><b>'+q[0]+'</b></p>'+b.ord.map((k,i)=>'<button class="btn" onclick="ans('+i+',this)">'+q[1][k]+'</button>').join('')+'<div id="ex"></div>');
+}
+function ans(i,el){
+  const q=QS[cur.q],bs=[...cd.querySelectorAll('.btn')];
+  bs.forEach((b,k)=>{b.disabled=true;if(k===cur.cor)b.classList.add('ok')});
+  S.done++;
+  if(i===cur.cor){S.ok++;S.score+=100;S.money+=25000;S.well+=8}else el.classList.add('no');
+  hud();
+  $('ex').innerHTML='<p><b>'+(i===cur.cor?'✅ Benar! +Rp25.000 bonus literasi':'❌ Belum tepat.')+'</b> '+q[3]+'</p><button class="btn go" onclick="resume()">Lanjut ▶</button>';
+}
+function resume(){ov.classList.add('hide');state='play';S.p.vy=1}
+function card(h){cd.innerHTML=h;ov.classList.remove('hide')}
+function win(){
+  state='won';const g=S.ok>=8?'Juara Cerdas Finansial 🏆':S.ok>=5?'Warga Sejahtera 👍':'Terus Belajar 📚';
+  REC={nama:ID.n,kelas:ID.k,benar:S.ok,dari:10,waktu:fmt(Math.round((Date.now()-T0)/1000)),percobaan:ATT,skor:S.score,tabungan:S.money,kesejahteraan:Math.min(100,S.well),gelar:g.replace(/\s\S+$/,''),tanggal:new Date().toLocaleString('id-ID')};
+  card('<h2>🎉 Kamu sampai di Lawang Sewu!</h2><p><b>'+esc(ID.n)+'</b> · Kelas '+esc(ID.k)+' · '+REC.tanggal+'</p><p><b>Gelar: '+g+'</b></p><ul><li>Jawaban benar: '+S.ok+' dari 10</li><li>Waktu bermain: '+REC.waktu+'</li><li>Percobaan ke-'+ATT+'</li><li>Skor: '+S.score+'</li><li>Tabungan: Rp'+S.money.toLocaleString('id-ID')+'</li><li>Tingkat kesejahteraan: '+Math.min(100,S.well)+'%</li></ul><p>Pesan: prioritaskan kebutuhan, sisihkan tabungan di awal, waspada investasi bodong, dan dukung UMKM kreatif Semarang.</p><div id="sv"></div><p><small>Kirim bukti ini ke guru: tangkap layar kartu atau salin teksnya.</small></p><button class="btn go" onclick="cert()">🎓 Unduh sertifikat (gambar)</button><button class="btn" onclick="copyBukti()">📋 Salin teks bukti</button><button class="btn" onclick="saveRes()">📤 Kirim ke guru (jika tersedia)</button><button class="btn" onclick="dl()">⬇️ Unduh bukti (CSV)</button><button class="btn go" onclick="start()">Main Lagi</button>');
+}
+let ATT=0,T0=0;const fmt=s=>Math.floor(s/60)+' mnt '+s%60+' dtk';
+function start(){ATT++;T0=Date.now();reset();state='play';ov.classList.add('hide')}
+let REC=null,RC=[],un=null,ID={n:'',k:''};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+function begin(){const n=$('nm').value.trim(),k=$('kl').value.trim();if(!n||!k){$('er').textContent='Isi nama dan kelas dulu ya.';return}ID={n:n,k:k};start()}
+async function saveRes(){const m=$('sv');try{const db=await claude.use('db'),u=await claude.use('user');if(!db||!u)throw 0;await db.collection('hasil').doc(await u.id()).set(REC);m.innerHTML='<p><b>✅ Nilai terkirim ke guru</b> (yang tersimpan adalah hasil terakhirmu).</p>'}catch(e){m.innerHTML='<p><b>⚠️ Belum bisa terkirim.</b> Unduh hasilmu atau tangkap layar, lalu kirim ke guru.</p>'}}
+const HD=['nama','kelas','benar','dari','waktu','percobaan','skor','tabungan','kesejahteraan','gelar','tanggal'];
+function cell(v){v=String(v==null?'':v);if(/^[=+\-@]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'}
+function csv(rows){return '\ufeff'+[HD.join(',')].concat(rows.map(r=>HD.map(k=>cell(r[k])).join(','))).join('\n')}
+async function save(rows,fn){try{const d=await claude.use('downloads');if(!d)throw 0;await d.save({filename:fn,data:csv(rows)})}catch(e){const m=$('sv');if(m)m.innerHTML='<p><b>⚠️ Unduhan tidak tersedia.</b> Tangkap layar kartu ini sebagai bukti.</p>'}}
+function dl(){save([REC],'hasil-'+REC.nama.replace(/\W+/g,'-')+'.csv')}
+function dlAll(){save(RC,'rekap-nilai.csv')}
+function copyBukti(){const t='Bukti Tes IPAS Ekonomi Semarang\nNama: '+REC.nama+'\nKelas: '+REC.kelas+'\nJawaban benar: '+REC.benar+'/10\nWaktu: '+REC.waktu+'\nPercobaan ke-'+REC.percobaan+'\nSkor: '+REC.skor+'\nTabungan: Rp'+REC.tabungan.toLocaleString('id-ID')+'\nKesejahteraan: '+REC.kesejahteraan+'%\nTanggal: '+REC.tanggal;const m=$('sv');const show=()=>{m.innerHTML='<textarea readonly class="in" rows="6" onfocus="this.select()">'+esc(t)+'</textarea><p>Salin teks di atas, lalu kirim ke guru.</p>'};try{navigator.clipboard.writeText(t).then(()=>{m.innerHTML='<p><b>✅ Bukti tersalin.</b> Tempel ke chat guru.</p>'},show)}catch(e){show()}}
+function cert(){
+ const c=document.createElement('canvas');c.width=1200;c.height=850;const x=c.getContext('2d'),R=REC;
+ x.fillStyle='#fff8e7';x.fillRect(0,0,1200,850);
+ x.strokeStyle='#b8860b';x.lineWidth=14;x.strokeRect(25,25,1150,800);x.strokeStyle='#e63946';x.lineWidth=4;x.strokeRect(50,50,1100,750);
+ x.textAlign='center';x.fillStyle='#1d2433';x.font='bold 28px Georgia,serif';x.fillText('PROYEK IPAS \u00b7 EKONOMI DAN KESEJAHTERAAN',600,115);
+ x.fillStyle='#e63946';x.font='bold 64px Georgia,serif';x.fillText('SERTIFIKAT',600,200);
+ x.fillStyle='#1d2433';x.font='26px Georgia,serif';x.fillText('Petualangan Ekonomi Semarang diberikan kepada',600,255);
+ let fs=64;x.font='bold '+fs+'px Georgia,serif';while(x.measureText(R.nama).width>950&&fs>28){fs-=4;x.font='bold '+fs+'px Georgia,serif'}
+ x.fillStyle='#14213d';x.fillText(R.nama,600,340);x.fillRect(150,355,900,3);
+ x.font='28px Georgia,serif';x.fillStyle='#1d2433';x.fillText('Kelas '+R.kelas+' \u00b7 Gelar: '+R.gelar,600,405);
+ const st=[['Jawaban benar',R.benar+' / 10'],['Waktu',R.waktu],['Percobaan','ke-'+R.percobaan],['Skor',R.skor],['Tabungan','Rp'+R.tabungan.toLocaleString('id-ID')],['Kesejahteraan',R.kesejahteraan+'%']];
+ st.forEach((s,i)=>{const bx=110+(i%3)*330,by=450+Math.floor(i/3)*130;x.fillStyle='#fff';x.fillRect(bx,by,300,105);x.strokeStyle='#c9b88a';x.lineWidth=3;x.strokeRect(bx,by,300,105);x.fillStyle='#6b3e1b';x.font='22px Georgia,serif';x.fillText(s[0],bx+150,by+36);x.fillStyle='#e63946';x.font='bold 34px Georgia,serif';x.fillText(String(s[1]),bx+150,by+80)});
+ x.fillStyle='#1d2433';x.font='italic 22px Georgia,serif';x.fillText('Cerdas finansial dan inovatif mengembangkan ekonomi kreatif Kota Semarang',600,740);
+ x.font='20px Georgia,serif';x.fillText(R.tanggal,600,780);
+ x.font='60px serif';x.fillText('\ud83c\udfc6',140,160);x.fillText('\ud83c\udfd9\ufe0f',1060,160);
+ $('sv').innerHTML='<img alt="Sertifikat" src="'+c.toDataURL('image/png')+'" style="width:100%;border-radius:8px;border:2px solid #c9b88a"><p><small>Jika belum terunduh, tekan lama gambar lalu simpan.</small></p>';
+ c.toBlob(async b=>{try{const d=await claude.use('downloads');if(!d)throw 0;await d.save({filename:'sertifikat-'+R.nama.replace(/\W+/g,'-')+'.png',data:b})}catch(e){}},'image/png');
+}
+function back(){un&&un();un=null;intro()}
+async function recap(){card('<h2>👩‍🏫 Rekap Nilai</h2><p>Memuat…</p>');const fail=()=>card('<h2>Rekap tidak tersedia</h2><p>Hanya pemilik atau editor halaman ini yang dapat melihat rekap nilai.</p><button class="btn go" onclick="back()">Kembali</button>');try{const db=await claude.use('db');if(!db)throw 0;un&&un();un=db.collection('hasil').onSnapshot(s=>{const r=s.docs.map(d=>d.data()).sort((a,b)=>(a.kelas+a.nama).localeCompare(b.kelas+b.nama));RC=r;card('<h2>👩‍🏫 Rekap Nilai ('+r.length+')</h2><div style="overflow:auto;max-height:240px"><table style="width:100%;font-size:12px;border-collapse:collapse"><tr><th align=left>Nama</th><th>Kelas</th><th>Benar</th><th>Waktu</th><th>Coba</th></tr>'+r.map(x=>'<tr><td>'+esc(x.nama)+'</td><td align=center>'+esc(x.kelas)+'</td><td align=center>'+esc(x.benar)+'/10</td><td align=center>'+esc(x.waktu)+'</td><td align=center>'+esc(x.percobaan)+'</td></tr>').join('')+'</table></div><button class="btn" onclick="dlAll()">⬇️ Unduh rekap (CSV)</button><button class="btn go" onclick="back()">Kembali</button>')},fail)}catch(e){fail()}}
+function intro(){
+  card('<h2>🏙️ Petualangan Ekonomi Semarang</h2><p>Proyek IPAS: <b>Ekonomi dan Kesejahteraan</b>. Jalan menuju Lawang Sewu, kumpulkan koin tabungan, injak musuh (Boros, Utang, Hoaks), dan sundul blok <b>?</b> untuk menjawab kuis.</p><ul><li><b>Zona 1:</b> kebutuhan, skala prioritas, kesejahteraan</li><li><b>Zona 2:</b> menabung, dana darurat, waspada investasi bodong</li><li><b>Zona 3:</b> ekonomi kreatif, UMKM, dan inovasi Semarang</li></ul><p>🔀 Soal dan urutan pilihan diacak setiap kali main, jadi tiap permainan berbeda.</p><p><input id="nm" class="in" placeholder="Nama lengkap" maxlength="40"><input id="kl" class="in" placeholder="Kelas (misal 7A)" maxlength="10"><span id="er" style="color:#c1121f;font-size:13px"></span></p><button class="btn go" onclick="begin()">▶ Mulai Main</button><button class="btn" style="text-align:center" onclick="recap()">👩‍🏫 Rekap Guru</button>');
+}
+/* drawing */
+function draw(){
+  const p=S.p,cam=Math.max(0,Math.min(WORLD-W,p.x-300));
+  const g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#8ecae6');g.addColorStop(1,'#ffe8b0');cx.fillStyle=g;cx.fillRect(0,0,W,H);
+  cx.fillStyle='#fff';for(let i=0;i<14;i++){const x=((i*430-cam*.3)%(W+200)+W+200)%(W+200)-100;cx.beginPath();cx.ellipse(x,50+(i%3)*30,38,15,0,0,7);cx.fill()}
+  cx.fillStyle='#5a9e6f';for(let i=0;i<10;i++){const x=((i*300-cam*.5)%(W+300)+W+300)%(W+300)-150;cx.beginPath();cx.moveTo(x-130,GY);cx.lineTo(x,GY-90-(i%3)*20);cx.lineTo(x+130,GY);cx.fill()}
+  cx.save();cx.translate(-cam,0);
+  segs.forEach(s=>{cx.fillStyle='#8b5a2b';cx.fillRect(s[0],GY,s[1]-s[0],70);cx.fillStyle='#4caf50';cx.fillRect(s[0],GY,s[1]-s[0],10)});
+  plats.forEach(q=>{cx.fillStyle='#c1440e';cx.fillRect(q[0],q[1],q[2],18);cx.fillStyle='#e07a5f';for(let x=q[0];x<q[0]+q[2];x+=22)cx.fillRect(x+2,q[1]+2,18,6)});
+  zones.forEach(z=>{cx.fillStyle='#6b3e1b';cx.fillRect(z[0]+30,GY-70,6,70);cx.fillStyle='#fff8e7';cx.fillRect(z[0]+8,GY-110,190,44);cx.strokeStyle='#6b3e1b';cx.strokeRect(z[0]+8,GY-110,190,44);cx.fillStyle='#222';cx.font='bold 11px sans-serif';const t=z[1].split(' · ');cx.fillText(t[0],z[0]+16,GY-92);cx.fillText(t[1],z[0]+16,GY-75)});
+  blocks.forEach(b=>{cx.fillStyle=b.used?'#7a6a55':'#ffb703';cx.fillRect(b.x,b.y,32,32);cx.strokeStyle='#6b3e1b';cx.lineWidth=2;cx.strokeRect(b.x,b.y,32,32);if(!b.used){cx.fillStyle='#fff';cx.font='bold 22px sans-serif';cx.fillText('?',b.x+10,b.y+24)}});
+  coins.forEach(c=>{if(c.got)return;const w=Math.abs(Math.sin((S.t+c.x)/12))*7+2;cx.fillStyle='#ffd60a';cx.beginPath();cx.ellipse(c.x,c.y,w,9,0,0,7);cx.fill();cx.strokeStyle='#b8860b';cx.stroke()});
+  S.en.forEach(e=>{if(!e.alive)return;cx.fillStyle=e.n==='Utang'?'#9d4edd':e.n==='Hoaks'?'#2a9d8f':'#8d5524';cx.beginPath();cx.ellipse(e.x+14,e.y+16,15,13,0,0,7);cx.fill();cx.fillStyle='#fff';cx.fillRect(e.x+6,e.y+8,6,7);cx.fillRect(e.x+17,e.y+8,6,7);cx.fillStyle='#000';cx.fillRect(e.x+8,e.y+10,3,4);cx.fillRect(e.x+19,e.y+10,3,4);cx.fillStyle='#222';cx.font='bold 10px sans-serif';cx.fillText(e.n,e.x+1,e.y-3)});
+  /* Lawang Sewu */
+  const fx=FLAG;cx.fillStyle='#f4ede0';cx.fillRect(fx+40,GY-130,170,130);cx.fillStyle='#b5442b';cx.fillRect(fx+30,GY-150,190,22);cx.fillRect(fx+105,GY-185,40,38);
+  cx.fillStyle='#3d2b1f';for(let i=0;i<5;i++){cx.beginPath();cx.arc(fx+62+i*30,GY-60,11,Math.PI,0);cx.fillRect(fx+51+i*30,GY-60,22,60);cx.fill()}
+  cx.fillStyle='#222';cx.font='bold 12px sans-serif';cx.fillText('Lawang Sewu',fx+72,GY-136);
+  /* player */
+  if(!(S.inv&&S.t%8<4)){const x=p.x,y=p.y;cx.fillStyle='#e63946';cx.fillRect(x,y,22,8);cx.fillRect(x+(p.face>0?4:-4),y+4,22,5);cx.fillStyle='#ffcc99';cx.fillRect(x+3,y+8,16,10);cx.fillStyle='#1d6fb8';cx.fillRect(x+2,y+18,18,10);cx.fillStyle='#4a2c0a';const l=p.on&&(keys.l||keys.r)?(S.t>>2&1)*3:0;cx.fillRect(x+2,y+28,8,4);cx.fillRect(x+12+l,y+28,8,4);cx.fillStyle='#000';cx.fillRect(x+(p.face>0?13:6),y+11,3,3)}
+  cx.restore();
+  const z=[...zones].reverse().find(z=>p.x>=z[0]-100)||zones[0];
+  cx.fillStyle='#0007';cx.fillRect(W/2-150,6,300,22);cx.fillStyle='#fff';cx.font='bold 13px sans-serif';cx.textAlign='center';cx.fillText(z[1],W/2,22);cx.textAlign='left';
+}
+function loop(){if(state==='play')step();if(S)draw();requestAnimationFrame(loop)}
+/* input */
+const K={ArrowLeft:'l',KeyA:'l',ArrowRight:'r',KeyD:'r',ArrowUp:'j',KeyW:'j',Space:'j'};
+addEventListener('keydown',e=>{if(K[e.code]){keys[K[e.code]]=1;e.preventDefault()}});
+addEventListener('keyup',e=>{if(K[e.code])keys[K[e.code]]=0});
+[['bl','l'],['br','r'],['bj','j']].forEach(([id,k])=>{const b=$(id);['pointerdown'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[k]=1}));['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>keys[k]=0))});
+reset();intro();loop();
+</script>
+</body>
+</html>
